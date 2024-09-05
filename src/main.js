@@ -81,21 +81,15 @@ async function fetchRelatedCommits(ticket) {
 
   const relatedRepositories = await fetchIssueCommitsInfo(ticket.key);
 
-  if (relatedRepositories.length === 0) {
-    ticketInfo.repositories.push({
-      repository: "No related commits found",
-      commits: [],
-    });
-  } else {
+  if (relatedRepositories.length !== 0) {
     relatedRepositories.forEach((repo) => {
       const repoInfo = {
-        repository: repo.name,
         commits: repo.commits.map((commit) => ({
           id: commit.id,
           message: commit.message,
         })),
       };
-      ticketInfo.repositories.push(repoInfo);
+      ticketInfo.repositories[repo.name] = repoInfo;
     });
   }
 
@@ -139,23 +133,56 @@ async function getInfo(fixVersion) {
   return data;
 }
 
-function formatOutput(data) {
+function formatRepositories(repositories, showCommits) {
   let output = "";
+  const repos = Object.entries(repositories);
+  if (!repos.length) return "No related commits found.\n";
+
+  repos.map(([repo, { commits }]) => {
+    output += `${INDENTION}${showCommits ? "Repository: " : ""}${repo}\n`;
+    if (showCommits) {
+      commits.forEach((commit) => {
+        output += `${INDENTION}${INDENTION}[${commit.id}] ${commit.message}\n`;
+      });
+    }
+  });
+
+  return output;
+}
+
+function formatOutput(data, reportType, showStories) {
+  let output = "";
+  const mergedRepositories = {};
+
+  if (!showStories) {
+  }
 
   for (const [team, tickets] of Object.entries(data)) {
     output += `\nTeam: ${team}\n`;
 
     tickets.forEach((ticket) => {
-      output += `[${ticket.key}] - ${ticket.summary}\n`;
-
-      ticket.repositories.forEach((repo) => {
-        output += `${INDENTION}Repository: ${repo.repository}\n`;
-
-        repo.commits.forEach((commit) => {
-          output += `${INDENTION}${INDENTION}[${commit.id}] ${commit.message}\n`;
+      if (!showStories) {
+        Object.entries(ticket.repositories).map(([repo, { commits }]) => {
+          if (!mergedRepositories[repo]) {
+            mergedRepositories[repo] = { commits: [] };
+          }
+          mergedRepositories[repo].commits.push(...commits);
         });
-      });
+      } else {
+        output += `[${ticket.key}] - ${ticket.summary}\n`;
+        output += formatRepositories(
+          ticket.repositories,
+          reportType === "commits"
+        );
+      }
     });
+
+    if (!showStories) {
+      output += formatRepositories(
+        mergedRepositories,
+        reportType === "commits"
+      );
+    }
   }
 
   return output;
@@ -182,13 +209,26 @@ const argv = yargs(hideBin(process.argv))
     describe: "The file to write the output to",
     type: "string",
   })
+  .option("report-type", {
+    alias: "r",
+    describe: 'Report type: "repositories" or "commits"',
+    type: "string",
+    choices: ["repositories", "commits"],
+    default: "repositories",
+  })
+  .option("show-stories", {
+    alias: "s",
+    describe: "Group commits/repositories by user story",
+    type: "boolean",
+    default: false,
+  })
   .help()
   .alias("help", "h").argv;
 
 async function main() {
-  const { fixVersion, outputFile } = argv;
+  const { fixVersion, outputFile, reportType, showStories } = argv;
   const data = await getInfo(fixVersion);
-  const formattedOutput = formatOutput(data);
+  const formattedOutput = formatOutput(data, reportType, showStories);
   printOutput(formattedOutput, outputFile);
 }
 
