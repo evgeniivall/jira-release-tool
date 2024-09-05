@@ -1,4 +1,7 @@
 const axios = require("axios");
+const yargs = require("yargs/yargs");
+const { hideBin } = require("yargs/helpers");
+const fs = require("fs");
 const { truncateString } = require("./helpers");
 require("dotenv").config();
 
@@ -136,7 +139,7 @@ async function getInfo(fixVersion) {
   return data;
 }
 
-function print(data) {
+function formatOutput(data) {
   let output = "";
 
   for (const [team, tickets] of Object.entries(data)) {
@@ -155,19 +158,38 @@ function print(data) {
     });
   }
 
-  console.log(output); // Finally print all at once
+  return output;
 }
 
-// Read fixVersion from command line arguments
-const fixVersion = process.argv[2];
-if (!fixVersion) {
-  console.log("Usage: node tool.js <fixVersion>");
-  process.exit(1);
+function printOutput(output, outputFile) {
+  if (outputFile) {
+    fs.writeFileSync(outputFile, output);
+    console.log(`Output written to ${outputFile}`);
+  } else {
+    console.log(output);
+  }
 }
 
-async function main(fixVersion) {
+const argv = yargs(hideBin(process.argv))
+  .option("fixVersion", {
+    alias: "f",
+    describe: "The fixVersion to search for in Jira",
+    type: "string",
+    demandOption: true,
+  })
+  .option("output-file", {
+    alias: "o",
+    describe: "The file to write the output to",
+    type: "string",
+  })
+  .help()
+  .alias("help", "h").argv;
+
+async function main() {
+  const { fixVersion, outputFile } = argv;
   const data = await getInfo(fixVersion);
-  print(data);
+  const formattedOutput = formatOutput(data);
+  printOutput(formattedOutput, outputFile);
 }
 
-main(fixVersion);
+main();
