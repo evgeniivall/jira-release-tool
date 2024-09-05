@@ -20,13 +20,11 @@ async function fetchTicketsByFixVersion(fixVersion) {
       params: { jql, fields: `key,summary,${TEAM_CUSTOM_FIELD}` },
     });
     const issues = response.data.issues || [];
-    return issues
-      .map((issue) => ({
-        key: issue.key,
-        summary: issue.fields.summary,
-        team: issue.fields[TEAM_CUSTOM_FIELD]?.name,
-      }))
-      .slice(0, 3);
+    return issues.map((issue) => ({
+      key: issue.key,
+      summary: issue.fields.summary,
+      team: issue.fields[TEAM_CUSTOM_FIELD]?.name,
+    }));
   } catch (error) {
     console.error(`Failed to fetch tickets for ${fixVersion}:`, error.message);
     return [];
@@ -69,6 +67,36 @@ async function fetchIssueCommitsInfo(issueKey) {
   }
 }
 
+async function fetchRelatedCommits(ticket) {
+  const ticketInfo = {
+    key: ticket.key,
+    summary: ticket.summary,
+    repositories: [],
+  };
+
+  const relatedRepositories = await fetchIssueCommitsInfo(ticket.key);
+
+  if (relatedRepositories.length === 0) {
+    ticketInfo.repositories.push({
+      repository: "No related commits found",
+      commits: [],
+    });
+  } else {
+    relatedRepositories.forEach((repo) => {
+      const repoInfo = {
+        repository: repo.name,
+        commits: repo.commits.map((commit) => ({
+          id: commit.id,
+          message: commit.message,
+        })),
+      };
+      ticketInfo.repositories.push(repoInfo);
+    });
+  }
+
+  return ticketInfo;
+}
+
 async function getInfo(fixVersion) {
   console.log(`Fetching tickets for fixVersion: ${fixVersion}...`);
 
@@ -94,37 +122,13 @@ async function getInfo(fixVersion) {
   for (const [team, teamTickets] of Object.entries(ticketsByTeam)) {
     data[team] = []; // Create array to store team tickets
 
-    for (const ticket of teamTickets) {
-      const ticketInfo = {
-        key: ticket.key,
-        summary: ticket.summary,
-        repositories: [],
-      };
+    // Fetch related commits for all tickets in parallel
+    const ticketPromises = teamTickets.map((ticket) =>
+      fetchRelatedCommits(ticket)
+    );
 
-      // Fetch related commits for this ticket across all repositories
-
-      const relatedRepositories = await fetchIssueCommitsInfo(ticket.key);
-
-      if (relatedRepositories.length === 0) {
-        ticketInfo.repositories.push({
-          repository: "No related commits found",
-          commits: [],
-        });
-      } else {
-        relatedRepositories.forEach((repo) => {
-          const repoInfo = {
-            repository: repo.name,
-            commits: repo.commits.map((commit) => ({
-              id: commit.id,
-              message: commit.message,
-            })),
-          };
-          ticketInfo.repositories.push(repoInfo);
-        });
-      }
-
-      data[team].push(ticketInfo); // Add ticket info to the team
-    }
+    // Wait for all promises to resolve
+    data[team] = await Promise.all(ticketPromises);
   }
 
   return data;
