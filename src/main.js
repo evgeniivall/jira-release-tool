@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { truncateString } = require("./helpers");
 require("dotenv").config();
 
 // Jira configuration
@@ -8,6 +9,7 @@ const JIRA_AUTH = {
   password: process.env.JIRA_TOKEN,
 };
 const TEAM_CUSTOM_FIELD = "customfield_10001";
+const INDENTION = "    ";
 
 // Fetch tickets by fixVersion from Jira
 async function fetchTicketsByFixVersion(fixVersion) {
@@ -56,7 +58,7 @@ async function fetchIssueCommitsInfo(issueKey) {
       name: repo.name,
       commits: repo.commits.map((commit) => ({
         id: commit.id,
-        message: commit.message,
+        message: truncateString(commit.message),
       })),
     }));
 
@@ -144,10 +146,10 @@ function print(data) {
       output += `[${ticket.key}] - ${ticket.summary}\n`;
 
       ticket.repositories.forEach((repo) => {
-        output += `  Repository: ${repo.repository}\n`;
+        output += `${INDENTION}Repository: ${repo.repository}\n`;
 
         repo.commits.forEach((commit) => {
-          output += `    Commit: ${commit.id}\n`;
+          output += `${INDENTION}${INDENTION}[${commit.id}] ${commit.message}\n`;
         });
       });
     });
