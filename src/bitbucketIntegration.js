@@ -18,7 +18,7 @@ function getDateOneMonthAgo() {
 
 async function fetchAllRepositories() {
   let repositories = [];
-  let url = `${BITBUCKET_URL}/repositories/pecteam/?q=name~"aion-ui-mono"`;
+  let url = `${BITBUCKET_URL}/repositories/"`;
 
   try {
     while (url) {
