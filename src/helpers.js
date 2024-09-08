@@ -1,6 +1,6 @@
 const STR_LIMIT = 256;
 
-export function truncateString(input) {
+function truncateString(input) {
   const newLineIndex = input.indexOf("\n");
 
   if (newLineIndex !== -1 && newLineIndex < STR_LIMIT) {
@@ -9,3 +9,5 @@ export function truncateString(input) {
 
   return input.slice(0, STR_LIMIT);
 }
+
+module.exports = { truncateString };
